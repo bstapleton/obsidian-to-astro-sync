@@ -1,10 +1,13 @@
 import { promises as fsp } from "fs";
 import chokidar from "chokidar";
-import config from "./config.js";
+import 'dotenv/config'
+
+const config = process.env
 
 /**
  * Notes
  */
+
 let allNotes = {};
 
 async function getNote(fileName) {
@@ -16,17 +19,20 @@ async function getNote(fileName) {
   if (noteContent.indexOf("---") != 0) return null;
 
   const frontmatterText = noteContent.split("---")[1];
-  // convert frontmatter to object
   const frontmatter = frontMatterToObject(frontmatterText);
 
   if (!frontmatter.slug) return null;
+  if (!frontmatter.collection) return null;
   if (!frontmatter.publish) return null;
 
   return {
     fileName,
-    vaultTitle: fileName.split(".md")[0],
-    slug: frontmatter.slug,
-    content: noteContent,
+    shortTitle: fileName.split("/").pop().split(".md")[0], // "slug" in the vault without .md extension
+    vaultTitle: fileName.split(".md")[0], // full path in vault without .md extension
+    title: frontmatter.title, // note title
+    slug: frontmatter.slug, // defined slug that you want note to live at
+    content: noteContent, // note contents
+    collection: frontmatter.collection // defined collection that notes goes into
   };
 }
 
@@ -46,7 +52,7 @@ function frontMatterToObject(frontmatterText) {
 }
 
 async function readNotes() {
-  let noteFileNames = await fsp.readdir(config.vaultNotesPath);
+  let noteFileNames = await fsp.readdir(config.vaultNotesPath, { recursive: true });
   noteFileNames = noteFileNames.filter((fileName) => fileName.endsWith(".md"));
   let notes = await Promise.all(
     noteFileNames.map((noteFileName) => getNote(noteFileName))
@@ -59,35 +65,49 @@ async function readNotes() {
 }
 
 const linksRegex = /\[\[(.+?)\]\]/g;
+const highlightsRegex = /\#{2} Highlights*/g;
 
 function processNote(note) {
   // check for wikilinks
-  const matches = note.content.match(linksRegex);
+  let matches = note.content.match(linksRegex);
   if (matches) {
     matches.forEach((match) => {
       const link = match.slice(2, -2);
       const linkParts = link.split("|");
-      const linkText = linkParts[1] || linkParts[0];
       const linkedNote = Object.values(allNotes).find(
-        (note) => note.vaultTitle === linkParts[0]
+        (note) => note.shortTitle === linkParts[0]
       );
       // if there is a linked note, replace with markdown link
       if (linkedNote) {
+        const linkText = linkParts[1] || linkedNote.title
         note.content = note.content.replace(
           match,
-          `[${linkText}](/${linkedNote.slug}/)`
+          `[${linkText}](/${linkedNote.collection}/${linkedNote.slug}/)`
         );
+        // if there is a linked image, replace with markdown link
+      } else if ([".webp", ".png", ".jpg"].some(extension => linkParts[0].endsWith(extension))) {
+        const linkText = linkParts[1] || ""
+        note.content = note.content.replace(
+          match,
+          `[${linkText}](../assets/${linkParts[0]})`
+        )
       } else {
         // if there is no linked note, remove wikilink
+        const linkText = linkParts[1] || linkParts[0]
         note.content = note.content.replace(match, linkText);
       }
     });
   }
 
-  // replace images with file:// src with relative src
-  if (config.replaceFileSystemImageSrc) {
-    const fileRegex = new RegExp(`file://${config.vaultPath}`, "g");
-    note.content = note.content.replace(fileRegex, "");
+  // remove highlights from book notes
+  matches = note.content.match(highlightsRegex);
+  if (matches) {
+    matches.forEach((match) => {
+      note.content = note.content.split(match)[0]
+    })
+
+    // add other processors here
+
   }
 
   return note;
@@ -100,15 +120,21 @@ function writeNote(note) {
   console.log(`Writing ${note.fileName}...`);
   const processedNote = processNote(note);
   return fsp.writeFile(
-    config.astroNotesPath + "/" + processedNote.slug + ".md",
+    config.astroNotesPath + "/" + processedNote.collection + "/" + processedNote.slug + ".md",
     processedNote.content
   );
 }
 
 async function updateNote(path) {
-  const fileName = path.split("/").pop();
+  const fileName = path.split("/").slice(4).join("/");
   const note = await getNote(fileName);
-  if (!note) return;
+  if (!note) {
+    let image = {}
+    image["fileName"] = fileName.split("/").pop()
+    image["vaultTitle"] = fileName
+    copyImage(image)
+    return
+  };
   allNotes[note] = note;
   writeNote(note);
 }
@@ -118,7 +144,8 @@ async function updateNote(path) {
  */
 
 async function copyImages() {
-  const images = await fsp.readdir(config.vaultImagesPath);
+  let images = await fsp.readdir(config.vaultNotesPath, { recursive: true });
+  images = images.filter((fileName) => [".webp", ".png", ".jpg"].some(extension => fileName.endsWith(extension)));
   return Promise.all(images.map((image) => copyImage(image)));
 }
 
@@ -127,11 +154,11 @@ function isImageInNoteContent(image) {
 }
 
 async function copyImage(image) {
-  if (!isImageInNoteContent(image)) return;
-  console.log(`Copying ${image}...`);
+  if (!isImageInNoteContent(image.fileName)) return;
+  console.log(`Copying ${image.fileName}...`);
   return fsp.copyFile(
-    config.vaultImagesPath + "/" + image,
-    config.astroImagesPath + "/" + image
+    config.vaultNotesPath + "/" + image.vaultTitle,
+    config.astroImagesPath + "/" + image.fileName
   );
 }
 
@@ -141,7 +168,7 @@ async function copyImage(image) {
 
 function startWatcher() {
   console.log(
-    `Watching ${config.vaultNotesPath} and ${config.vaultImagesPath} for changes...`
+    `Watching ${config.vaultNotesPath} for changes...`
   );
   const noteWatcher = chokidar.watch(config.vaultNotesPath, {
     ignored: /(^|[/\\])\../, // ignore dotfiles
@@ -150,12 +177,6 @@ function startWatcher() {
   noteWatcher
     .on("add", (path) => updateNote(path))
     .on("change", (path) => updateNote(path));
-
-  const imagesWatcher = chokidar.watch(config.vaultImagesPath, {
-    ignored: /(^|[/\\])\../, // ignore dotfiles
-    persistent: true,
-  });
-  imagesWatcher.on("add", (path) => copyImage(path.split("/").pop()));
 }
 
 // Read all notes, copy all images, start the watcher

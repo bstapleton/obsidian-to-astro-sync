@@ -1,25 +1,44 @@
 # obsidian-to-astro-sync
+
 A Node.js script to sync your [Obsidian](https://obsidian.md/) notes with your [Astro](https://astro.build/) content.
 
+## Assumptions
+
+I adapted this script to my own vault and Astro file structures. Here are the requirements for this to work as-is.
+
+### Astro
+
+- You are using content collections 
+- All of your images are being dumped into one folder (e.g. `src/content/assets/`)
+
+### Obsidian
+
+- Each note contains the following frontmatter keys:
+  - `title:` The title of the note
+  - `publish:` If set to true, it will be copied to Astro
+  - `collection:` Which collection this note belongs to
+  - `slug:` A chosen slug *without* the collection (i.e. `my-blog-post` not `blog/my-blog-post`
+
 ## Instructions
-- download the repo contents
-- update the file paths in config.js to point to the location of the images and notes in your vault, and the images and notes in your Astro site.
-- run `npm install`
-- run `npm run start` to start the script.
 
-All notes in your vault with the property `publish` will be copied to the designated folder in Obsidian.
+- Download the repo contents
+- Rename `.env.template` to `.env` and update the file paths to point to the location of your vault and the images and notes in your Astro site
+- Run `npm install`
+- Run `npm run start` to start the script
 
-Any internal wikilinks in the original markdown file will be processed:
-- If the link points to another published note, it is replaced with an anchor link to that note.
-- If it points to a private note in your vault, the link syntax (`[[ ]]`) is removed
+The script does the following in order:
 
-When using `<img>` tags in Obsidian, relative file paths don't display the image inline. To see the image you need to point the src directly to the file with a `file:///` link. If you have `img` tags in your vault and you want these changed to relative links while being processed, you can include these options in your config:
+- Reads all of your Obsidian notes recursively
+- Filters out the notes that don't have `slug`, `collection`, and `publish: true` defined in their frontmatter
+- Copies all the images that are used in the published notes to `src/content/assets`
+- Processes and writes notes one-by-one:
+  - Converts wikilinks to Markdown links (image wikilinks, too)
+    - If the link points to another published note, it is replaced with an anchor link to that note
+    - If it points to a private note in your vault, the link syntax (`[[ ]]`) is removed
+  - Removes everything under a `## Highlights` heading
+  - Writes note to `src/content/{collection}/{slug}.md`
+- Watches your vault for changes and additions
 
-```js
-  replaceFileSystemImageSrc: true,
-  vaultPath: "PATH_TO_VAULT"
-```
+## Gratitude
 
----
-
-This is the script I use to copy the notes in my Obsidian vault to the repo for my site - https://github.com/rachsmithcodes/rachsmith.com.
+This is a fork from [Rach Smith's version](https://github.com/rachsmithcodes/obsidian-to-astro-sync). I adapted her project to fit my specific vault structure. Huge thank you to her for doing most of the work.

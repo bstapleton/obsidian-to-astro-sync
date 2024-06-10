@@ -1,7 +1,11 @@
 {
+  "name": "obsidian-to-astro",
+  "description": "A Node.js script to sync your Obsidian notes with your Astro content",
+  "license": "MIT",
   "type": "module",
   "dependencies": {
-    "chokidar": "^3.5.3"
+    "chokidar": "^3.5.3",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "eslint": "^8.51.0"
