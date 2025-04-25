@@ -87,9 +87,13 @@ function processNote(note) {
         // if there is a linked image, replace with markdown link
       } else if ([".webp", ".png", ".jpg"].some(extension => linkParts[0].endsWith(extension))) {
         const linkText = linkParts[1] || ""
+        // Get asset directory relative to the nesting of the note
+        const nesting = note.collection.split("/").length + 1; // Up one more to the /src directory
+        const up = Array.from({ length: nesting }, () => '../').join('');
+        const imageDirectory = config.astroImagesPath.split("/").pop();
         note.content = note.content.replace(
           match,
-          `[${linkText}](../assets/${linkParts[0]})`
+          `[${linkText}](${up}${imageDirectory}/${linkParts[0]})`
         )
       } else {
         // if there is no linked note, remove wikilink
