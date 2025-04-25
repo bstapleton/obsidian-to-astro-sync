@@ -117,8 +117,8 @@ function writeNote(note) {
   if (!note) {
     console.log(note);
   }
-  console.log(`Writing ${note.fileName}...`);
   const processedNote = processNote(note);
+  console.log(`Writing ${note.fileName} to ${config.astroNotesPath}/${processedNote.collection}/${processedNote.slug}.md`);
   return fsp.writeFile(
     config.astroNotesPath + "/" + processedNote.collection + "/" + processedNote.slug + ".md",
     processedNote.content
