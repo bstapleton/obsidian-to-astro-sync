@@ -126,7 +126,7 @@ function writeNote(note) {
 }
 
 async function updateNote(path) {
-  const fileName = path.split("/").slice(4).join("/");
+  const fileName = path.split("/").slice(config.vaultNotesPath.split("/").length).join("/");
   const note = await getNote(fileName);
   if (!note) {
     let image = {}
