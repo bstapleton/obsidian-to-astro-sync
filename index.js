@@ -66,6 +66,7 @@ async function readNotes() {
 
 const linksRegex = /\[\[(.+?)\]\]/g;
 const highlightsRegex = /\#{2} Highlights*/g;
+const dynamicEmbedsRegex = /\n`{3}dynamic-embed\nDaily at a glance\n`{3}\n-{3}/g;
 
 function processNote(note) {
   // check for wikilinks
@@ -109,9 +110,14 @@ function processNote(note) {
     matches.forEach((match) => {
       note.content = note.content.split(match)[0]
     })
+  }
 
-    // add other processors here
-
+  // remove dynamic embed which contain dataview queries
+  matches = note.content.match(dynamicEmbedsRegex);
+  if (matches) {
+    matches.forEach((match) => {
+      note.content = note.content.split(match)
+    })
   }
 
   return note;
