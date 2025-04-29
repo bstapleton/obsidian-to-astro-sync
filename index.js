@@ -23,7 +23,7 @@ async function getNote(fileName) {
 
   if (!frontmatter.slug) return null;
   if (!frontmatter.collection) return null;
-  if (!frontmatter.publish) return null;
+  if (!frontmatter.publish || frontmatter.publish == 'false') return null;
 
   return {
     fileName,
